@@ -6,10 +6,17 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
 import { UsersModule } from "./modules/users/users.module";
+import { RolesModule } from "./modules/roles/roles.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 
 @Module({
-  imports: [PrismaModule, AuthModule, CompaniesModule, UsersModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    CompaniesModule,
+    UsersModule,
+    RolesModule,
+  ],
   controllers: [AppController],
   providers: [
     AppService,
