@@ -9,7 +9,7 @@ import {
 export class SignupDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  fullName: string;
 
   @IsEmail()
   @IsNotEmpty()
@@ -19,6 +19,10 @@ export class SignupDto {
   @IsNotEmpty()
   @MinLength(6)
   password: string;
+
+  @IsString()
+  @IsOptional()
+  roleId?: string;
 
   @IsString()
   @IsOptional()

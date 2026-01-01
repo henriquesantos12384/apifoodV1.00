@@ -24,22 +24,37 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException("Email already in use");
+      throw new ConflictException("E-mail já está em uso");
     }
 
     // 2. Hash password
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
     // 3. Determine Role
-    // Default to 'admin' if not provided (assuming new signup is a store owner)
-    const roleName = dto.role || "admin";
+    let roleId = dto.roleId;
+    let roleName = "";
 
-    const role = await this.prisma.role.findUnique({
-      where: { name: roleName },
-    });
+    if (!roleId) {
+      // Default to 'admin' if not provided (assuming new signup is a store owner)
+      const nameToFind = dto.role || "admin";
+      const role = await this.prisma.role.findUnique({
+        where: { name: nameToFind },
+      });
 
-    if (!role) {
-      throw new ConflictException(`Role '${roleName}' not found`);
+      if (!role) {
+        throw new ConflictException(`Perfil '${nameToFind}' não encontrado`);
+      }
+      roleId = role.id;
+      roleName = role.name;
+    } else {
+      // Verify if roleId exists
+      const role = await this.prisma.role.findUnique({
+        where: { id: roleId },
+      });
+      if (!role) {
+        throw new ConflictException(`ID do Perfil '${roleId}' não encontrado`);
+      }
+      roleName = role.name;
     }
 
     // 4. Create User
@@ -47,21 +62,21 @@ export class AuthService {
     // The user is created without a company (companyId is null).
     const user = await this.prisma.user.create({
       data: {
-        fullName: dto.name,
+        fullName: dto.fullName,
         email: dto.email,
         passwordHash: hashedPassword,
         isActive: true,
-        roleId: role.id,
+        roleId: roleId,
       },
     });
 
-    const payload = { sub: user.id, email: user.email, role: role.name };
+    const payload = { sub: user.id, email: user.email, role: roleName };
     return {
       user: {
         id: user.id,
         name: user.fullName,
         email: user.email,
-        role: role.name,
+        role: roleName,
       },
       accessToken: this.jwtService.sign(payload),
     };
@@ -73,7 +88,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException("Invalid credentials");
+      throw new UnauthorizedException("Credenciais inválidas");
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -82,7 +97,7 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException("Invalid credentials");
+      throw new UnauthorizedException("Credenciais inválidas");
     }
 
     const payload = { sub: user.id, email: user.email };
