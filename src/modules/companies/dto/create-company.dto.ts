@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, IsOptional, IsUUID, IsArray } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsUUID,
+  IsArray,
+} from "class-validator";
 
 export class CreateCompanyDto {
   @IsString()
