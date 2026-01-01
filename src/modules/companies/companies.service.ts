@@ -35,17 +35,8 @@ export class CompaniesService {
       throw new ConflictException("Company with this slug already exists");
     }
 
-    // Verifica se o owner existe
-    const owner = await this.prisma.user.findUnique({
-      where: { id: createCompanyDto.ownerId },
-    });
-
-    if (!owner) {
-      throw new NotFoundException(
-        `Owner (User) with ID ${createCompanyDto.ownerId} not found`
-      );
-    }
-
+    // Cria company sem associar `createdBy` aqui; se necessário, o usuário
+    // autenticado deverá ser atribuído em outra camada (ex: controller/auth).
     return this.prisma.company.create({
       data: {
         nameFantasy: createCompanyDto.name,
@@ -53,7 +44,6 @@ export class CompaniesService {
         status: createCompanyDto.status || "active",
         // Usa slug como fallback para cnpj em ambiente de teste
         cnpj: slug,
-        createdBy: createCompanyDto.ownerId,
       },
     });
   }

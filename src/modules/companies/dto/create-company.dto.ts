@@ -1,10 +1,4 @@
-import {
-  IsNotEmpty,
-  IsString,
-  IsOptional,
-  IsUUID,
-  IsArray,
-} from "class-validator";
+import { IsNotEmpty, IsString, IsOptional } from "class-validator";
 
 export class CreateCompanyDto {
   @IsString()
@@ -18,13 +12,4 @@ export class CreateCompanyDto {
   @IsString()
   @IsOptional()
   status?: string;
-
-  @IsUUID()
-  @IsNotEmpty()
-  ownerId: string;
-
-  @IsArray()
-  @IsUUID("4", { each: true })
-  @IsOptional()
-  nicheIds?: string[];
 }
