@@ -41,6 +41,7 @@ model Company {
   address     String?
   description String?
   phone       String?
+  isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
   createdBy   String?  @map("created_by") @db.Uuid
@@ -62,6 +63,7 @@ model User {
   passwordHash String   @map("password_hash")
   roleId       String   @map("role_id") @db.Uuid
   companyId    String   @map("company_id") @db.Uuid
+  isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
   createdBy    String?  @map("created_by") @db.Uuid
