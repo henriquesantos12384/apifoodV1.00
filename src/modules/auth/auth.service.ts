@@ -67,7 +67,8 @@ export class AuthService {
         passwordHash: hashedPassword,
         isActive: true,
         roleId: roleId,
-      },
+        companyId: undefined,
+      } as any,
     });
 
     const payload = { sub: user.id, email: user.email, role: roleName };

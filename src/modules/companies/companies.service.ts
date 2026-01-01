@@ -145,13 +145,13 @@ export class CompaniesService {
     await this.findOne(companyId);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException(`User ${userId} not found`);
-
-    const system = await this.prisma.company.findUnique({ where: { slug: "_system" } });
-    const systemCompany = system
-      ? system
-      : await this.prisma.company.create({ data: { nameFantasy: "System", slug: "_system", cnpj: "00000000000000", status: "active", createdBy: user.id } });
-
-    return this.prisma.user.update({ where: { id: userId }, data: { company: { connect: { id: systemCompany.id } } } });
+    // Reatribui o usuário para a company `_system` porque `disconnect` não é permitido quando a relação é obrigatória.
+    const systemCompany = await this.prisma.company.findUnique({ where: { slug: "_system" } });
+    if (!systemCompany) throw new NotFoundException(`System company with slug "_system" not found`);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { company: { connect: { id: systemCompany.id } } },
+    });
   }
 
   // Atualiza o campo createdBy (owner) da company
