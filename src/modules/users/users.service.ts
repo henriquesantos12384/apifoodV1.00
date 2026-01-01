@@ -31,16 +31,23 @@ export class UsersService {
     }
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    const createData: any = {
+      fullName: createUserDto.fullName,
+      email: createUserDto.email,
+      passwordHash: hashedPassword,
+      isActive: true,
+    };
+
+    if (createUserDto.roleId) {
+      createData.roleId = createUserDto.roleId;
+    }
+
+    if (createUserDto.companyId) {
+      createData.companyId = createUserDto.companyId;
+    }
 
     return this.prisma.user.create({
-      data: {
-        fullName: createUserDto.fullName,
-        email: createUserDto.email,
-        passwordHash: hashedPassword,
-        roleId: createUserDto.roleId,
-        companyId: createUserDto.companyId,
-        isActive: true,
-      },
+      data: createData,
       select: {
         id: true,
         fullName: true,
@@ -116,16 +123,17 @@ export class UsersService {
       }
     }
 
+    const updateData: any = {};
+    if (data.fullName !== undefined) updateData.fullName = data.fullName;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.passwordHash !== undefined) updateData.passwordHash = data.passwordHash;
+    if (data.roleId !== undefined) updateData.roleId = data.roleId;
+    if (data.companyId !== undefined) updateData.companyId = data.companyId;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
     return this.prisma.user.update({
       where: { id },
-      data: {
-        fullName: data.fullName,
-        email: data.email,
-        passwordHash: data.passwordHash,
-        roleId: data.roleId,
-        companyId: data.companyId,
-        isActive: data.isActive,
-      },
+      data: updateData,
       select: {
         id: true,
         fullName: true,
