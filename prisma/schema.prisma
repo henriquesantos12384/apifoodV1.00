@@ -1,0 +1,89 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  // Relations
+  users       User[]   @relation("UserRole")
+  creator     User?    @relation("RoleCreator", fields: [createdBy], references: [id])
+  updater     User?    @relation("RoleUpdater", fields: [updatedBy], references: [id])
+
+  @@map("roles")
+}
+
+model Company {
+  id          String   @id @default(uuid()) @db.Uuid
+  status      String
+  nameFantasy String   @map("name_fantasy")
+  cnpj        String   @unique
+  slug        String   @unique
+  logoUrl     String?  @map("logo_url")
+  address     String?
+  description String?
+  phone       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  // Relations
+  users       User[]   @relation("UserCompany")
+  creator     User?    @relation("CompanyCreator", fields: [createdBy], references: [id])
+  updater     User?    @relation("CompanyUpdater", fields: [updatedBy], references: [id])
+
+  @@map("companies")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  fullName     String   @map("full_name")
+  email        String   @unique
+  phone        String?
+  passwordHash String   @map("password_hash")
+  roleId       String   @map("role_id") @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy    String?  @map("created_by") @db.Uuid
+  updatedBy    String?  @map("updated_by") @db.Uuid
+
+  // Relations
+  role         Role     @relation("UserRole", fields: [roleId], references: [id])
+  company      Company  @relation("UserCompany", fields: [companyId], references: [id])
+  
+  creator      User?    @relation("UserCreator", fields: [createdBy], references: [id])
+  updater      User?    @relation("UserUpdater", fields: [updatedBy], references: [id])
+
+  // Reverse Relations
+  createdRoles      Role[]    @relation("RoleCreator")
+  updatedRoles      Role[]    @relation("RoleUpdater")
+  createdCompanies  Company[] @relation("CompanyCreator")
+  updatedCompanies  Company[] @relation("CompanyUpdater")
+  createdUsers      User[]    @relation("UserCreator")
+  updatedUsers      User[]    @relation("UserUpdater")
+
+  @@map("users")
+}
+
+
+
