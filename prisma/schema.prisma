@@ -61,7 +61,7 @@ model User {
   email        String   @unique
   phone        String?
   passwordHash String   @map("password_hash")
-  roleId       String   @map("role_id") @db.Uuid
+  roleId       String?  @map("role_id") @db.Uuid
   companyId    String?  @map("company_id") @db.Uuid
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -70,7 +70,7 @@ model User {
   updatedBy    String?  @map("updated_by") @db.Uuid
 
   // Relations
-  role         Role     @relation("UserRole", fields: [roleId], references: [id])
+  role         Role?    @relation("UserRole", fields: [roleId], references: [id])
   company      Company? @relation("UserCompany", fields: [companyId], references: [id])
   
   creator      User?    @relation("UserCreator", fields: [createdBy], references: [id])
