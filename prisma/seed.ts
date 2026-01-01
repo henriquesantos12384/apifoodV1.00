@@ -3,43 +3,26 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  const roles = ["master", "admin", "cashier", "waiter", "kitchen", "courier"];
+  const roles = [
+    { name: "master", description: "Acesso total ao sistema" },
+    { name: "admin", description: "Administrador da loja" },
+    { name: "caixa", description: "Operador de PDV" },
+    { name: "cozinha", description: "Visualização de pedidos KDS" },
+    { name: "entregador", description: "App de entregas" },
+  ];
 
   console.log("Seeding roles...");
 
-  for (const roleName of roles) {
-    // We use upsert to avoid duplicates if the script is run multiple times
-    // However, since 'name' is not unique in the schema provided earlier (it was just String),
-    // we might create duplicates if we are not careful.
-    // Let's check if it exists first or just create.
-    // The user didn't specify 'name' as unique in the prompt "name (TEXT: ...)",
-    // but usually role names should be unique.
-    // Let's check the schema I wrote.
-
-    // In the previous turn:
-    // model Role {
-    //   id   String @id @default(uuid()) @db.Uuid
-    //   name String // master, admin, cashier, waiter, kitchen, courier
-    // ...
-    // }
-
-    // Since name is not unique, upsert by name won't work directly unless I find by name.
-    // But findFirst + create is safer here.
-
-    const existingRole = await prisma.role.findFirst({
-      where: { name: roleName },
+  for (const role of roles) {
+    await prisma.role.upsert({
+      where: { name: role.name },
+      update: { description: role.description },
+      create: {
+        name: role.name,
+        description: role.description,
+      },
     });
-
-    if (!existingRole) {
-      await prisma.role.create({
-        data: {
-          name: roleName,
-        },
-      });
-      console.log(`Created role: ${roleName}`);
-    } else {
-      console.log(`Role already exists: ${roleName}`);
-    }
+    console.log(`Upserted role: ${role.name}`);
   }
 
   console.log("Seeding finished.");
