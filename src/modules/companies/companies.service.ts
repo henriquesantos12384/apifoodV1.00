@@ -7,10 +7,21 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { CreateCompanyDto } from "./dto/create-company.dto";
 import { UpdateCompanyDto } from "./dto/update-company.dto";
 
+/**
+ * CompaniesService
+ *
+ * Observações sobre o schema Prisma usadas aqui:
+ * - Company tem `nameFantasy` e `cnpj` é obrigatório.
+ * - User possui `fullName` e `companyId`.
+ * - Relações são conectadas via nested inputs (e.g. `company: { connect: { id } }`).
+ */
 @Injectable()
 export class CompaniesService {
   constructor(private prisma: PrismaService) {}
 
+  // Cria uma nova company.
+  // Body exemplo: { name, ownerId, slug?, status? }
+  // Nota: `name` do DTO é mapeado para `nameFantasy` no schema Prisma.
   async create(createCompanyDto: CreateCompanyDto) {
     const slug =
       createCompanyDto.slug ||
@@ -24,7 +35,7 @@ export class CompaniesService {
       throw new ConflictException("Company with this slug already exists");
     }
 
-    // Verify if owner exists
+    // Verifica se o owner existe
     const owner = await this.prisma.user.findUnique({
       where: { id: createCompanyDto.ownerId },
     });
@@ -37,55 +48,43 @@ export class CompaniesService {
 
     return this.prisma.company.create({
       data: {
-        name: createCompanyDto.name,
+        nameFantasy: createCompanyDto.name,
         slug: slug,
         status: createCompanyDto.status || "active",
+        // Usa slug como fallback para cnpj em ambiente de teste
+        cnpj: slug,
         createdBy: createCompanyDto.ownerId,
-        niches: {
-          create: createCompanyDto.nicheIds?.map((nicheId) => ({
-            niche: { connect: { id: nicheId } },
-          })),
-        },
-      },
-      include: {
-        niches: {
-          include: {
-            niche: true,
-          },
-        },
       },
     });
   }
 
+  // Lista todas as companies ativas.
+  // Retorna informações básicas do `creator` (id, fullName, email).
+  // Usado por GET /companies
   findAll() {
     return this.prisma.company.findMany({
       where: {
-        status: { not: "inactive" }, // Show active and blocked, hide inactive (deleted)
+        status: { not: "inactive" },
       },
       include: {
         creator: {
-          select: { id: true, name: true, email: true },
-        },
-        niches: {
-          include: {
-            niche: true,
-          },
+          select: { id: true, fullName: true, email: true },
         },
       },
     });
   }
 
+  // Busca company por ID e inclui creator + users.
+  // GET /companies/:id
   async findOne(id: string) {
     const company = await this.prisma.company.findUnique({
       where: { id },
       include: {
         creator: {
-          select: { id: true, name: true, email: true },
+          select: { id: true, fullName: true, email: true },
         },
-        niches: {
-          include: {
-            niche: true,
-          },
+        users: {
+          select: { id: true, fullName: true, email: true, phone: true, isActive: true },
         },
       },
     });
@@ -97,20 +96,85 @@ export class CompaniesService {
     return company;
   }
 
+  // Busca company por slug. Inclui creator e users.
+  // GET /companies/slug/:slug
+  async findBySlug(slug: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { slug },
+      include: {
+        creator: { select: { id: true, fullName: true, email: true } },
+        users: { select: { id: true, fullName: true, email: true } },
+      },
+    });
+
+    if (!company) throw new NotFoundException(`Company with slug ${slug} not found`);
+    return company;
+  }
+
+  // Busca company por CNPJ.
+  // GET /companies/cnpj/:cnpj
+  async findByCnpj(cnpj: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { cnpj },
+      include: { creator: { select: { id: true, fullName: true, email: true } } },
+    });
+
+    if (!company) throw new NotFoundException(`Company with cnpj ${cnpj} not found`);
+    return company;
+  }
+
+  // Lista usuários associados à company (via user.companyId)
+  // GET /companies/:id/users
+  async findUsers(companyId: string) {
+    await this.findOne(companyId);
+    return this.prisma.user.findMany({ where: { companyId }, select: { id: true, fullName: true, email: true, phone: true, isActive: true } });
+  }
+
+  // Associa/atribui um usuário à company (atualiza user.companyId).
+  // POST /companies/:id/users
+  async addUser(companyId: string, userId: string) {
+    await this.findOne(companyId);
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException(`User ${userId} not found`);
+    return this.prisma.user.update({ where: { id: userId }, data: { company: { connect: { id: companyId } } } });
+  }
+
+  // Remove usuário da company: reatribui para company `_system` (necessário porque companyId é obrigatório)
+  // DELETE /companies/:id/users/:userId
+  async removeUser(companyId: string, userId: string) {
+    await this.findOne(companyId);
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException(`User ${userId} not found`);
+
+    const system = await this.prisma.company.findUnique({ where: { slug: "_system" } });
+    const systemCompany = system
+      ? system
+      : await this.prisma.company.create({ data: { nameFantasy: "System", slug: "_system", cnpj: "00000000000000", status: "active", createdBy: user.id } });
+
+    return this.prisma.user.update({ where: { id: userId }, data: { company: { connect: { id: systemCompany.id } } } });
+  }
+
+  // Atualiza o campo createdBy (owner) da company
+  // PATCH /companies/:id/owner
+  async changeOwner(companyId: string, ownerId: string) {
+    await this.findOne(companyId);
+    const owner = await this.prisma.user.findUnique({ where: { id: ownerId } });
+    if (!owner) throw new NotFoundException(`User ${ownerId} not found`);
+    return this.prisma.company.update({ where: { id: companyId }, data: { createdBy: ownerId } });
+  }
+
+  // Reativa a company (desfaz soft-delete)
+  // POST /companies/:id/reactivate
+  async reactivate(companyId: string) {
+    await this.findOne(companyId);
+    return this.prisma.company.update({ where: { id: companyId }, data: { status: "active", isActive: true } });
+  }
+
+  // Atualiza campos da company. ownerId (se enviado) é mapeado para createdBy.
   async update(id: string, updateCompanyDto: UpdateCompanyDto) {
-    await this.findOne(id); // Check if exists
+    await this.findOne(id);
 
     const data: any = { ...updateCompanyDto };
-
-    // If ownerId is provided, we map it to createdBy? Or maybe updatedBy?
-    // Usually changing owner is a sensitive operation.
-    // For now let's assume we can update basic fields.
-    // If ownerId is passed in DTO, we might want to ignore it or handle it.
-    // The DTO has ownerId. Let's map it to createdBy if we want to change ownership,
-    // or maybe we should have a separate logic.
-    // For simplicity of CRUD, I'll remove ownerId from update data if it's there,
-    // or map it if the user really intends to change it.
-    // Let's map it to createdBy for now if provided.
 
     if (data.ownerId) {
       data.createdBy = data.ownerId;
@@ -127,10 +191,10 @@ export class CompaniesService {
     });
   }
 
+  // Soft delete — marca a company como inactive
   async remove(id: string) {
-    await this.findOne(id); // Check if exists
+    await this.findOne(id);
 
-    // Soft delete
     return this.prisma.company.update({
       where: { id },
       data: { status: "inactive" },

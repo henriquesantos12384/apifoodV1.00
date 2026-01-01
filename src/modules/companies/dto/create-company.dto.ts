@@ -21,7 +21,7 @@ export class CreateCompanyDto {
 
   @IsUUID()
   @IsNotEmpty()
-  ownerId: string; // The user who owns/created the company
+  ownerId: string;
 
   @IsArray()
   @IsUUID("4", { each: true })
