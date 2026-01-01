@@ -27,112 +27,44 @@ export class AuthService {
       throw new ConflictException("Email already in use");
     }
 
-    // 2. Check if company slug exists (if provided)
-    let slug: string | null = null;
-    if (dto.companyName) {
-      slug =
-        dto.companySlug || dto.companyName.toLowerCase().replace(/ /g, "-");
-      const existingCompany = await this.prisma.company.findUnique({
-        where: { slug },
-      });
-
-      if (existingCompany) {
-        throw new ConflictException("Company slug already in use");
-      }
-    }
-
-    // 3. Hash password
+    // 2. Hash password
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    // 4. Transaction to create User, and optionally Company
-    return this.prisma.$transaction(async (tx) => {
-      // Lógica para MASTER do SaaS (Você)
-      if (dto.role === "master") {
-        const user = await tx.user.create({
-          data: {
-            name: dto.name,
-            email: dto.email,
-            passwordHash: hashedPassword,
-            status: "active",
-            role: "master", // Global Role
-          },
-        });
+    // 3. Determine Role
+    // Default to 'admin' if not provided (assuming new signup is a store owner)
+    const roleName = dto.role || "admin";
 
-        // Master não cria empresa no cadastro e não entra em company_users
-        const payload = { sub: user.id, email: user.email, role: user.role };
-        return {
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-          },
-          company: null,
-          accessToken: this.jwtService.sign(payload),
-        };
-      }
-
-      // Lógica para Clientes (Donos de Pizzaria/Hamburgueria)
-      const user = await tx.user.create({
-        data: {
-          name: dto.name,
-          email: dto.email,
-          passwordHash: hashedPassword,
-          status: "active",
-          role: "user", // Global Role comum
-        },
-      });
-
-      let company: Company | null = null;
-
-      if (dto.companyName && slug) {
-        // Create Company
-        company = await tx.company.create({
-          data: {
-            name: dto.companyName,
-            slug: slug,
-            status: "active",
-            createdBy: user.id,
-          },
-        });
-
-        // O dono da pizzaria recebe o cargo de 'admin' (Tenant Admin), não 'master'
-        const adminRole = await tx.role.findFirst({
-          where: { name: "admin" },
-        });
-
-        if (!adminRole) {
-          throw new Error("Admin role not found. Please seed roles.");
-        }
-
-        // Link User to Company as Admin
-        await tx.companyUser.create({
-          data: {
-            companyId: company.id,
-            userId: user.id,
-            roleId: adminRole.id,
-            status: "active",
-          },
-        });
-      }
-
-      // Generate Token
-      const payload = { sub: user.id, email: user.email, role: user.role };
-      const token = this.jwtService.sign(payload);
-
-      return {
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
-        company: company
-          ? { id: company.id, name: company.name, slug: company.slug }
-          : null,
-        accessToken: token,
-      };
+    const role = await this.prisma.role.findUnique({
+      where: { name: roleName },
     });
+
+    if (!role) {
+      throw new ConflictException(`Role '${roleName}' not found`);
+    }
+
+    // 4. Create User
+    // Note: We are NOT creating a company here anymore.
+    // The user is created without a company (companyId is null).
+    const user = await this.prisma.user.create({
+      data: {
+        fullName: dto.name,
+        email: dto.email,
+        passwordHash: hashedPassword,
+        isActive: true,
+        roleId: role.id,
+      },
+    });
+
+    const payload = { sub: user.id, email: user.email, role: role.name };
+    return {
+      user: {
+        id: user.id,
+        name: user.fullName,
+        email: user.email,
+        role: role.name,
+      },
+      accessToken: this.jwtService.sign(payload),
+    };
   }
 
   async signin(dto: SigninDto) {
@@ -156,7 +88,7 @@ export class AuthService {
     const payload = { sub: user.id, email: user.email };
     return {
       accessToken: this.jwtService.sign(payload),
-      user: { id: user.id, name: user.name, email: user.email },
+      user: { id: user.id, name: user.fullName, email: user.email },
     };
   }
 }
