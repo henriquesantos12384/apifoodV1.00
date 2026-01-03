@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { SupabaseService } from "../../common/supabase/supabase.service";
 import { CreateCompanyDto } from "./dto/create-company.dto";
 import { UpdateCompanyDto } from "./dto/update-company.dto";
 
@@ -17,7 +18,51 @@ import { UpdateCompanyDto } from "./dto/update-company.dto";
  */
 @Injectable()
 export class CompaniesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private supabaseService: SupabaseService
+  ) {}
+
+  async uploadLogo(file: Express.Multer.File, companyName: string) {
+    const safeCompanyName = companyName
+      ? companyName.replace(/[^a-z0-9]/gi, "-").toLowerCase()
+      : "unknown";
+    const fileName = `${safeCompanyName}/${Date.now()}-${file.originalname.replace(
+      /\s/g,
+      ""
+    )}`;
+    await this.supabaseService.uploadFile(
+      "companies",
+      fileName,
+      file.buffer,
+      file.mimetype
+    );
+    return { url: this.supabaseService.getPublicUrl("companies", fileName) };
+  }
+
+  async uploadFile(file: Express.Multer.File, companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { slug: true },
+    });
+
+    if (!company) {
+      throw new NotFoundException("Company not found");
+    }
+
+    const fileName = `${company.slug}/${Date.now()}-${file.originalname.replace(
+      /\s/g,
+      ""
+    )}`;
+
+    await this.supabaseService.uploadFile(
+      "companies",
+      fileName,
+      file.buffer,
+      file.mimetype
+    );
+    return { url: this.supabaseService.getPublicUrl("companies", fileName) };
+  }
 
   // Cria uma nova company.
   // Body exemplo: { name, ownerId, slug?, status? }
@@ -42,8 +87,13 @@ export class CompaniesService {
         nameFantasy: createCompanyDto.name,
         slug: slug,
         status: createCompanyDto.status || "active",
-        // Usa slug como fallback para cnpj em ambiente de teste
-        cnpj: slug,
+        cnpj: createCompanyDto.cnpj,
+        logoUrl: createCompanyDto.logoUrl,
+        address: createCompanyDto.address,
+        description: createCompanyDto.description,
+        phone: createCompanyDto.phone,
+        color: createCompanyDto.color,
+        isActive: createCompanyDto.isActive ?? true,
       },
     });
   }
@@ -74,7 +124,13 @@ export class CompaniesService {
           select: { id: true, fullName: true, email: true },
         },
         users: {
-          select: { id: true, fullName: true, email: true, phone: true, isActive: true },
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            isActive: true,
+          },
         },
       },
     });
@@ -97,7 +153,8 @@ export class CompaniesService {
       },
     });
 
-    if (!company) throw new NotFoundException(`Company with slug ${slug} not found`);
+    if (!company)
+      throw new NotFoundException(`Company with slug ${slug} not found`);
     return company;
   }
 
@@ -106,10 +163,13 @@ export class CompaniesService {
   async findByCnpj(cnpj: string) {
     const company = await this.prisma.company.findUnique({
       where: { cnpj },
-      include: { creator: { select: { id: true, fullName: true, email: true } } },
+      include: {
+        creator: { select: { id: true, fullName: true, email: true } },
+      },
     });
 
-    if (!company) throw new NotFoundException(`Company with cnpj ${cnpj} not found`);
+    if (!company)
+      throw new NotFoundException(`Company with cnpj ${cnpj} not found`);
     return company;
   }
 
@@ -117,7 +177,16 @@ export class CompaniesService {
   // GET /companies/:id/users
   async findUsers(companyId: string) {
     await this.findOne(companyId);
-    return this.prisma.user.findMany({ where: { companyId }, select: { id: true, fullName: true, email: true, phone: true, isActive: true } });
+    return this.prisma.user.findMany({
+      where: { companyId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        isActive: true,
+      },
+    });
   }
 
   // Associa/atribui um usuário à company (atualiza user.companyId).
@@ -126,7 +195,10 @@ export class CompaniesService {
     await this.findOne(companyId);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException(`User ${userId} not found`);
-    return this.prisma.user.update({ where: { id: userId }, data: { company: { connect: { id: companyId } } } });
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { company: { connect: { id: companyId } } },
+    });
   }
 
   // Remove usuário da company: reatribui para company `_system` (necessário porque companyId é obrigatório)
@@ -136,8 +208,13 @@ export class CompaniesService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException(`User ${userId} not found`);
     // Reatribui o usuário para a company `_system` porque `disconnect` não é permitido quando a relação é obrigatória.
-    const systemCompany = await this.prisma.company.findUnique({ where: { slug: "_system" } });
-    if (!systemCompany) throw new NotFoundException(`System company with slug "_system" not found`);
+    const systemCompany = await this.prisma.company.findUnique({
+      where: { slug: "_system" },
+    });
+    if (!systemCompany)
+      throw new NotFoundException(
+        `System company with slug "_system" not found`
+      );
     return this.prisma.user.update({
       where: { id: userId },
       data: { company: { connect: { id: systemCompany.id } } },
@@ -150,14 +227,20 @@ export class CompaniesService {
     await this.findOne(companyId);
     const owner = await this.prisma.user.findUnique({ where: { id: ownerId } });
     if (!owner) throw new NotFoundException(`User ${ownerId} not found`);
-    return this.prisma.company.update({ where: { id: companyId }, data: { createdBy: ownerId } });
+    return this.prisma.company.update({
+      where: { id: companyId },
+      data: { createdBy: ownerId },
+    });
   }
 
   // Reativa a company (desfaz soft-delete)
   // POST /companies/:id/reactivate
   async reactivate(companyId: string) {
     await this.findOne(companyId);
-    return this.prisma.company.update({ where: { id: companyId }, data: { status: "active", isActive: true } });
+    return this.prisma.company.update({
+      where: { id: companyId },
+      data: { status: "active", isActive: true },
+    });
   }
 
   // Atualiza campos da company. ownerId (se enviado) é mapeado para createdBy.
@@ -165,6 +248,11 @@ export class CompaniesService {
     await this.findOne(id);
 
     const data: any = { ...updateCompanyDto };
+
+    if (data.name) {
+      data.nameFantasy = data.name;
+      delete data.name;
+    }
 
     if (data.ownerId) {
       data.createdBy = data.ownerId;

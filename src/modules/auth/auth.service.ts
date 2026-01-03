@@ -86,6 +86,10 @@ export class AuthService {
   async signin(dto: SigninDto) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
+      include: {
+        role: true,
+        company: true,
+      },
     });
 
     if (!user) {
@@ -101,10 +105,16 @@ export class AuthService {
       throw new UnauthorizedException("Credenciais inválidas");
     }
 
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: user.id, email: user.email, role: user.role?.name };
     return {
       accessToken: this.jwtService.sign(payload),
-      user: { id: user.id, name: user.fullName, email: user.email },
+      user: {
+        id: user.id,
+        name: user.fullName,
+        email: user.email,
+        role: user.role?.name,
+        companySlug: user.company?.slug,
+      },
     };
   }
 }

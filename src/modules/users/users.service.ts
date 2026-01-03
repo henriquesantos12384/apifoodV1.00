@@ -53,7 +53,7 @@ export class UsersService {
         fullName: true,
         email: true,
         role: { select: { name: true } },
-        company: { select: { nameFantasy: true } },
+        company: { select: { nameFantasy: true, slug: true } },
         isActive: true,
         createdAt: true,
       },
@@ -69,7 +69,7 @@ export class UsersService {
         fullName: true,
         email: true,
         role: { select: { name: true } },
-        company: { select: { nameFantasy: true } },
+        company: { select: { nameFantasy: true, slug: true } },
         isActive: true,
         createdAt: true,
       },
@@ -85,7 +85,7 @@ export class UsersService {
         fullName: true,
         email: true,
         role: { select: { name: true } },
-        company: { select: { nameFantasy: true } },
+        company: { select: { nameFantasy: true, slug: true } },
         isActive: true,
         createdAt: true,
       },
@@ -126,7 +126,8 @@ export class UsersService {
     const updateData: any = {};
     if (data.fullName !== undefined) updateData.fullName = data.fullName;
     if (data.email !== undefined) updateData.email = data.email;
-    if (data.passwordHash !== undefined) updateData.passwordHash = data.passwordHash;
+    if (data.passwordHash !== undefined)
+      updateData.passwordHash = data.passwordHash;
     if (data.roleId !== undefined) updateData.roleId = data.roleId;
     if (data.companyId !== undefined) updateData.companyId = data.companyId;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
