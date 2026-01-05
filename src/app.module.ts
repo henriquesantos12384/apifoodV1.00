@@ -14,6 +14,7 @@ import { PizzaSizesModule } from "./modules/pizza-sizes/pizza-sizes.module";
 import { PizzaFlavorsModule } from "./modules/pizza-flavors/pizza-flavors.module";
 import { PizzaBordersModule } from "./modules/pizza-borders/pizza-borders.module";
 import { PromotionsModule } from "./modules/promotions/promotions.module";
+import { OrdersModule } from "./modules/orders/orders.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { SupabaseModule } from "./common/supabase/supabase.module";
 
@@ -31,6 +32,7 @@ import { SupabaseModule } from "./common/supabase/supabase.module";
     PizzaFlavorsModule,
     PizzaBordersModule,
     PromotionsModule,
+    OrdersModule,
     SupabaseModule,
   ],
   controllers: [AppController],

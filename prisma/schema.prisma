@@ -1,8 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// --- CONFIGURAÇÕES INICIAIS ---
 
 generator client {
   provider = "prisma-client-js"
@@ -14,9 +10,36 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// --- ENUMS (PADRONIZAÇÃO DE STATUS) ---
+// Isso evita que um dev escreva "Pronto" e outro "pronto".
+
+enum OrderType {
+  DELIVERY // Pedido para viagem (tem endereço, não tem mesa)
+  MESA     // Pedido local (tem mesa, não tem endereço)
+  BALCAO   // Retirada (não tem mesa nem endereço obrigatório)
+}
+
+enum OrderStatus {
+  PENDENTE  // Acabou de chegar, cozinha não viu
+  COZINHA   // Em preparo
+  PRONTO    // Comida feita, aguardando garçom/motoboy
+  ENTREGA   // Saiu da loja (só delivery)
+  CONCLUIDO // Pago e finalizado
+  CANCELADO // Algo deu errado
+}
+
+enum PaymentMethod {
+  DINHEIRO
+  PIX
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+}
+
+// --- 1. CONTROLE DE ACESSO (RBAC) ---
+
 model Role {
   id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique
+  name        String   @unique // Ex: 'admin', 'garcom', 'cozinha'
   description String?
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
@@ -24,24 +47,26 @@ model Role {
   updatedBy   String?  @map("updated_by") @db.Uuid
 
   // Relations
-  users       User[]   @relation("UserRole")
-  creator     User?    @relation("RoleCreator", fields: [createdBy], references: [id])
-  updater     User?    @relation("RoleUpdater", fields: [updatedBy], references: [id])
+  users   User[] @relation("UserRole")
+  creator User?  @relation("RoleCreator", fields: [createdBy], references: [id])
+  updater User?  @relation("RoleUpdater", fields: [updatedBy], references: [id])
 
   @@map("roles")
 }
+
+// --- 2. MULTI-TENANCY (EMPRESA) ---
 
 model Company {
   id          String   @id @default(uuid()) @db.Uuid
   status      String
   nameFantasy String   @map("name_fantasy")
   cnpj        String   @unique
-  slug        String   @unique
+  slug        String   @unique // Para URL amigável: app.com/pizzaria-x
   logoUrl     String?  @map("logo_url")
   address     String?
   description String?
   phone       String?
-  color       String?
+  color       String?  // Personalização da cor do app
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
@@ -49,10 +74,11 @@ model Company {
   updatedBy   String?  @map("updated_by") @db.Uuid
 
   // Relations
-  users       User[]   @relation("UserCompany")
-  creator     User?    @relation("CompanyCreator", fields: [createdBy], references: [id])
-  updater     User?    @relation("CompanyUpdater", fields: [updatedBy], references: [id])
+  users   User[] @relation("UserCompany")
+  creator User?  @relation("CompanyCreator", fields: [createdBy], references: [id])
+  updater User?  @relation("CompanyUpdater", fields: [updatedBy], references: [id])
 
+  // Catálogo e Operação
   categories       Category[]
   products         Product[]
   additionals      Additional[]
@@ -62,9 +88,15 @@ model Company {
   pizzaBorders     PizzaBorder[]
   borderSizePrices BorderSizePrice[]
   promotions       Promotion[]
+  
+  // Novas Relações (Mesas e Pedidos)
+  tables           RestaurantTable[]
+  orders           Order[]
 
   @@map("companies")
 }
+
+// --- 3. USUÁRIOS (DONOS, FUNCIONÁRIOS E CLIENTES) ---
 
 model User {
   id           String   @id @default(uuid()) @db.Uuid
@@ -81,37 +113,64 @@ model User {
   updatedBy    String?  @map("updated_by") @db.Uuid
 
   // Relations
-  role         Role?    @relation("UserRole", fields: [roleId], references: [id])
-  company      Company? @relation("UserCompany", fields: [companyId], references: [id])
-  
-  creator      User?    @relation("UserCreator", fields: [createdBy], references: [id])
-  updater      User?    @relation("UserUpdater", fields: [updatedBy], references: [id])
+  role    Role?    @relation("UserRole", fields: [roleId], references: [id])
+  company Company? @relation("UserCompany", fields: [companyId], references: [id])
 
-  // Reverse Relations
-  createdRoles      Role[]    @relation("RoleCreator")
-  updatedRoles      Role[]    @relation("RoleUpdater")
-  createdCompanies  Company[] @relation("CompanyCreator")
-  updatedCompanies  Company[] @relation("CompanyUpdater")
-  createdUsers      User[]    @relation("UserCreator")
-  updatedUsers      User[]    @relation("UserUpdater")
+  // Auditoria (Quem criou quem)
+  creator User? @relation("UserCreator", fields: [createdBy], references: [id])
+  updater User? @relation("UserUpdater", fields: [updatedBy], references: [id])
 
-  createdCategories Category[] @relation("CategoryCreator")
-  updatedCategories Category[] @relation("CategoryUpdater")
-  createdProducts   Product[]  @relation("ProductCreator")
-  updatedProducts   Product[]  @relation("ProductUpdater")
-  createdAdditionals Additional[] @relation("AdditionalCreator")
-  updatedAdditionals Additional[] @relation("AdditionalUpdater")
-  createdPizzaSizes PizzaSize[] @relation("PizzaSizeCreator")
-  updatedPizzaSizes PizzaSize[] @relation("PizzaSizeUpdater")
-  createdPizzaFlavors PizzaFlavor[] @relation("PizzaFlavorCreator")
-  updatedPizzaFlavors PizzaFlavor[] @relation("PizzaFlavorUpdater")
-  createdPizzaBorders PizzaBorder[] @relation("PizzaBorderCreator")
-  updatedPizzaBorders PizzaBorder[] @relation("PizzaBorderUpdater")
-  createdPromotions Promotion[] @relation("PromotionCreator")
-  updatedPromotions Promotion[] @relation("PromotionUpdater")
+  // Reverse Relations (Auditoria)
+  createdRoles       Role[]    @relation("RoleCreator")
+  updatedRoles       Role[]    @relation("RoleUpdater")
+  createdCompanies   Company[] @relation("CompanyCreator")
+  updatedCompanies   Company[] @relation("CompanyUpdater")
+  createdUsers       User[]    @relation("UserCreator")
+  updatedUsers       User[]    @relation("UserUpdater")
+
+  // Reverse Relations (Catálogo)
+  createdCategories      Category[]        @relation("CategoryCreator")
+  updatedCategories      Category[]        @relation("CategoryUpdater")
+  createdProducts        Product[]         @relation("ProductCreator")
+  updatedProducts        Product[]         @relation("ProductUpdater")
+  createdAdditionals     Additional[]      @relation("AdditionalCreator")
+  updatedAdditionals     Additional[]      @relation("AdditionalUpdater")
+  createdPizzaSizes      PizzaSize[]       @relation("PizzaSizeCreator")
+  updatedPizzaSizes      PizzaSize[]       @relation("PizzaSizeUpdater")
+  createdPizzaFlavors    PizzaFlavor[]     @relation("PizzaFlavorCreator")
+  updatedPizzaFlavors    PizzaFlavor[]     @relation("PizzaFlavorUpdater")
+  createdPizzaBorders    PizzaBorder[]     @relation("PizzaBorderCreator")
+  updatedPizzaBorders    PizzaBorder[]     @relation("PizzaBorderUpdater")
+  createdPromotions      Promotion[]       @relation("PromotionCreator")
+  updatedPromotions      Promotion[]       @relation("PromotionUpdater")
+
+  // --- NOVAS RELAÇÕES DE PEDIDO ---
+  // Um usuário pode participar de um pedido como Cliente, Garçom ou Entregador
+  ordersAsCustomer    Order[] @relation("CustomerOrders")
+  ordersAsWaiter      Order[] @relation("WaiterOrders")
+  ordersAsDeliveryman Order[] @relation("DeliverymanOrders")
 
   @@map("users")
 }
+
+// --- 4. ESTRUTURA FÍSICA ---
+
+model RestaurantTable {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  tableNumber Int      @map("table_number") // O número que vai na plaquinha da mesa (1, 2, 10...)
+  qrCodeToken String   @unique @map("qr_code_token") // Hash único para gerar o QR Code
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orders  Order[]
+
+  @@map("restaurant_tables")
+}
+
+// --- 5. CARDÁPIO SIMPLES (PRODUTOS) ---
 
 model Category {
   id           String   @id @default(uuid()) @db.Uuid
@@ -124,12 +183,12 @@ model Category {
   createdBy    String?  @map("created_by") @db.Uuid
   updatedBy    String?  @map("updated_by") @db.Uuid
 
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator      User?    @relation("CategoryCreator", fields: [createdBy], references: [id])
-  updater      User?    @relation("CategoryUpdater", fields: [updatedBy], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator User?   @relation("CategoryCreator", fields: [createdBy], references: [id])
+  updater User?   @relation("CategoryUpdater", fields: [updatedBy], references: [id])
 
-  products     Product[]
-  additionals  Additional[]
+  products    Product[]
+  additionals Additional[]
 
   @@map("categories")
 }
@@ -141,7 +200,7 @@ model Product {
   name        String
   description String?
   imageUrl    String?  @map("image_url")
-  price       Decimal  @db.Decimal(10, 2)
+  price       Decimal  @db.Decimal(10, 2) // Preço base do produto
   isMenu      Boolean  @default(true) @map("is_menu")
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -149,58 +208,69 @@ model Product {
   createdBy   String?  @map("created_by") @db.Uuid
   updatedBy   String?  @map("updated_by") @db.Uuid
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category    Category @relation(fields: [categoryId], references: [id])
-  creator     User?    @relation("ProductCreator", fields: [createdBy], references: [id])
-  updater     User?    @relation("ProductUpdater", fields: [updatedBy], references: [id])
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id])
+  creator  User?    @relation("ProductCreator", fields: [createdBy], references: [id])
+  updater  User?    @relation("ProductUpdater", fields: [updatedBy], references: [id])
+  
+  // Relacionamento com itens do pedido
+  orderItems OrderItem[]
 
   @@map("products")
 }
 
 model Additional {
-  id          String   @id @default(uuid()) @db.Uuid
-  companyId   String   @map("company_id") @db.Uuid
-  categoryId  String?  @map("category_id") @db.Uuid
-  name        String
-  price       Decimal  @db.Decimal(10, 2)
-  imageUrl    String?  @map("image_url")
-  isMenu      Boolean  @default(true) @map("is_menu")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  createdBy   String?  @map("created_by") @db.Uuid
-  updatedBy   String?  @map("updated_by") @db.Uuid
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  categoryId String?  @map("category_id") @db.Uuid
+  name       String
+  price      Decimal  @db.Decimal(10, 2)
+  imageUrl   String?  @map("image_url")
+  isMenu     Boolean  @default(true) @map("is_menu")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy  String?  @map("created_by") @db.Uuid
+  updatedBy  String?  @map("updated_by") @db.Uuid
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category    Category? @relation(fields: [categoryId], references: [id])
-  creator     User?    @relation("AdditionalCreator", fields: [createdBy], references: [id])
-  updater     User?    @relation("AdditionalUpdater", fields: [updatedBy], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id])
+  creator  User?     @relation("AdditionalCreator", fields: [createdBy], references: [id])
+  updater  User?     @relation("AdditionalUpdater", fields: [updatedBy], references: [id])
+
+  // Usado nos pedidos
+  orderItemAdditionals OrderItemAdditional[]
 
   @@map("additionals")
 }
 
-model PizzaSize {
-  id          String   @id @default(uuid()) @db.Uuid
-  companyId   String   @map("company_id") @db.Uuid
-  name        String
-  slices      Int
-  maxFlavors  Int      @map("max_flavors")
-  diameterCm  Int?     @map("diameter_cm")
-  serves      Int?
-  imageUrl    String?  @map("image_url")
-  isMenu      Boolean  @default(true) @map("is_menu")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  createdBy   String?  @map("created_by") @db.Uuid
-  updatedBy   String?  @map("updated_by") @db.Uuid
+// --- 6. ENGENHARIA DA PIZZA (COMPLEXA) ---
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator     User?    @relation("PizzaSizeCreator", fields: [createdBy], references: [id])
-  updater     User?    @relation("PizzaSizeUpdater", fields: [updatedBy], references: [id])
+model PizzaSize {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  name       String   // Pequena, Média, Gigante
+  slices     Int      // 4, 8, 12 fatias
+  maxFlavors Int      @map("max_flavors") // Pode dividir em até quantos sabores?
+  diameterCm Int?     @map("diameter_cm")
+  serves     Int?     // Serve quantas pessoas?
+  imageUrl   String?  @map("image_url")
+  isMenu     Boolean  @default(true) @map("is_menu")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy  String?  @map("created_by") @db.Uuid
+  updatedBy  String?  @map("updated_by") @db.Uuid
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator User?   @relation("PizzaSizeCreator", fields: [createdBy], references: [id])
+  updater User?   @relation("PizzaSizeUpdater", fields: [updatedBy], references: [id])
 
   flavorPrices FlavorSizePrice[]
   borderPrices BorderSizePrice[]
+  
+  // Usado em pedidos
+  orderPizzas  OrderPizza[]
 
   @@map("pizza_sizes")
 }
@@ -208,7 +278,7 @@ model PizzaSize {
 model PizzaFlavor {
   id          String   @id @default(uuid()) @db.Uuid
   companyId   String   @map("company_id") @db.Uuid
-  type        String?
+  type        String?  // Salgada, Doce
   name        String
   description String?
   isMenu      Boolean  @default(true) @map("is_menu")
@@ -218,67 +288,71 @@ model PizzaFlavor {
   createdBy   String?  @map("created_by") @db.Uuid
   updatedBy   String?  @map("updated_by") @db.Uuid
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator     User?    @relation("PizzaFlavorCreator", fields: [createdBy], references: [id])
-  updater     User?    @relation("PizzaFlavorUpdater", fields: [updatedBy], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator User?   @relation("PizzaFlavorCreator", fields: [createdBy], references: [id])
+  updater User?   @relation("PizzaFlavorUpdater", fields: [updatedBy], references: [id])
 
-  sizePrices  FlavorSizePrice[]
+  sizePrices       FlavorSizePrice[]
+  orderPizzaFlavors OrderPizzaFlavor[] // Usado quando alguém pede esse sabor
 
   @@map("pizza_flavors")
 }
 
+// TABELA DE PREÇO MATRIX (SABOR X TAMANHO)
+// Aqui mora a lógica: "Quanto custa Calabresa na Grande?"
 model FlavorSizePrice {
-  id          String   @id @default(uuid()) @db.Uuid
-  companyId   String   @map("company_id") @db.Uuid
-  flavorId    String   @map("flavor_id") @db.Uuid
-  sizeId      String   @map("size_id") @db.Uuid
-  price       Decimal  @db.Decimal(10, 2)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  flavorId  String   @map("flavor_id") @db.Uuid
+  sizeId    String   @map("size_id") @db.Uuid
+  price     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  flavor      PizzaFlavor @relation(fields: [flavorId], references: [id], onDelete: Cascade)
-  size        PizzaSize   @relation(fields: [sizeId], references: [id], onDelete: Cascade)
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  flavor  PizzaFlavor @relation(fields: [flavorId], references: [id], onDelete: Cascade)
+  size    PizzaSize   @relation(fields: [sizeId], references: [id], onDelete: Cascade)
 
-  @@unique([flavorId, sizeId])
+  @@unique([flavorId, sizeId]) // Garante que não tenha preço duplicado para o mesmo par
   @@map("flavor_size_prices")
 }
 
 model PizzaBorder {
-  id          String   @id @default(uuid()) @db.Uuid
-  companyId   String   @map("company_id") @db.Uuid
-  name        String
-  isMenu      Boolean  @default(true) @map("is_menu")
-  isDefault   Boolean  @default(false) @map("is_default")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  createdBy   String?  @map("created_by") @db.Uuid
-  updatedBy   String?  @map("updated_by") @db.Uuid
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String
+  isMenu    Boolean  @default(true) @map("is_menu")
+  isDefault Boolean  @default(false) @map("is_default")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator     User?    @relation("PizzaBorderCreator", fields: [createdBy], references: [id])
-  updater     User?    @relation("PizzaBorderUpdater", fields: [updatedBy], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator User?   @relation("PizzaBorderCreator", fields: [createdBy], references: [id])
+  updater User?   @relation("PizzaBorderUpdater", fields: [updatedBy], references: [id])
 
   sizePrices  BorderSizePrice[]
+  orderPizzas OrderPizza[] // Usado no pedido
 
   @@map("pizza_borders")
 }
 
 model BorderSizePrice {
-  id          String   @id @default(uuid()) @db.Uuid
-  companyId   String   @map("company_id") @db.Uuid
-  borderId    String   @map("border_id") @db.Uuid
-  sizeId      String   @map("size_id") @db.Uuid
-  price       Decimal  @db.Decimal(10, 2)
-  isMenu      Boolean  @default(true) @map("is_menu")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  borderId  String   @map("border_id") @db.Uuid
+  sizeId    String   @map("size_id") @db.Uuid
+  price     Decimal  @db.Decimal(10, 2)
+  isMenu    Boolean  @default(true) @map("is_menu")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  border      PizzaBorder @relation(fields: [borderId], references: [id], onDelete: Cascade)
-  size        PizzaSize   @relation(fields: [sizeId], references: [id], onDelete: Cascade)
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  border  PizzaBorder @relation(fields: [borderId], references: [id], onDelete: Cascade)
+  size    PizzaSize   @relation(fields: [sizeId], references: [id], onDelete: Cascade)
 
   @@unique([borderId, sizeId])
   @@map("border_size_prices")
@@ -295,12 +369,120 @@ model Promotion {
   createdBy   String?  @map("created_by") @db.Uuid
   updatedBy   String?  @map("updated_by") @db.Uuid
 
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  creator     User?    @relation("PromotionCreator", fields: [createdBy], references: [id])
-  updater     User?    @relation("PromotionUpdater", fields: [updatedBy], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator User?   @relation("PromotionCreator", fields: [createdBy], references: [id])
+  updater User?   @relation("PromotionUpdater", fields: [updatedBy], references: [id])
 
   @@map("promotions")
 }
 
+// --- 7. NÚCLEO DE PEDIDOS (CORE DO SISTEMA) ---
 
+model Order {
+  id              String        @id @default(uuid()) @db.Uuid
+  companyId       String        @map("company_id") @db.Uuid
+  
+  // Atores do Pedido (Quem fez o quê)
+  // User? indica que pode ser nulo (ex: pedido Balcão não tem entregador nem garçom obrigatório)
+  customerId      String?       @map("customer_id") @db.Uuid
+  waiterId        String?       @map("waiter_id") @db.Uuid
+  deliverymanId   String?       @map("deliveryman_id") @db.Uuid
+  
+  // Controle de Fluxo
+  orderType       OrderType     @map("order_type") // DELIVERY, MESA, BALCAO
+  status          OrderStatus   @default(PENDENTE) // Controla o Kanban da cozinha
+  
+  // Dados Logísticos
+  tableId         String?       @map("table_id") @db.Uuid // Se for MESA, preenche aqui
+  deliveryAddress String?       @map("delivery_address")  // Se for DELIVERY, preenche aqui (snapshot de texto)
+  
+  // Financeiro (Snapshot do momento da venda)
+  paymentMethod   PaymentMethod? @map("payment_method")
+  totalProducts   Decimal       @default(0) @map("total_products") @db.Decimal(10, 2)
+  deliveryFee     Decimal       @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  discount        Decimal       @default(0) @db.Decimal(10, 2)
+  totalFinal      Decimal       @default(0) @map("total_final") @db.Decimal(10, 2)
+  
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
+  // Relações
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Relações nomeadas para diferenciar os usuários
+  customer        User?            @relation("CustomerOrders", fields: [customerId], references: [id])
+  waiter          User?            @relation("WaiterOrders", fields: [waiterId], references: [id])
+  deliveryman     User?            @relation("DeliverymanOrders", fields: [deliverymanId], references: [id])
+  
+  table           RestaurantTable? @relation(fields: [tableId], references: [id])
+
+  // Detalhes do Pedido
+  items           OrderItem[]   // Lanches e bebidas
+  pizzas          OrderPizza[]  // Pizzas montadas
+
+  @@map("orders")
+}
+
+// ITENS SIMPLES (Ex: Coca-cola, X-Bacon)
+model OrderItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  quantity    Int
+  
+  // PREÇO CONGELADO: Importante! Salva o preço que era no dia da venda.
+  // Se o produto aumentar depois, este registro não muda.
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(10, 2) 
+  notes       String?  // Ex: "Sem cebola"
+
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id])
+  addons      OrderItemAdditional[] // Adicionais deste item (ex: Bacon extra)
+
+  @@map("order_items")
+}
+
+model OrderItemAdditional {
+  id           String    @id @default(uuid()) @db.Uuid
+  orderItemId  String    @map("order_item_id") @db.Uuid
+  additionalId String    @map("additional_id") @db.Uuid
+  price        Decimal   @db.Decimal(10, 2) // Preço do adicional no momento da venda
+
+  orderItem    OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  additional   Additional @relation(fields: [additionalId], references: [id])
+
+  @@map("order_item_additionals")
+}
+
+// ITENS COMPLEXOS (PIZZAS)
+// Tabela separada porque Pizza tem estrutura de dados diferente de produto simples
+model OrderPizza {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  sizeId      String   @map("size_id") @db.Uuid
+  borderId    String?  @map("border_id") @db.Uuid // Borda é opcional
+  quantity    Int
+  
+  // PREÇO CALCULADO: O Backend faz a conta (Média ou Maior Valor) e salva o total aqui.
+  finalPrice  Decimal  @map("final_price") @db.Decimal(10, 2)
+  notes       String?  // Ex: "Bem assada"
+
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  size        PizzaSize   @relation(fields: [sizeId], references: [id])
+  border      PizzaBorder? @relation(fields: [borderId], references: [id])
+  
+  flavors     OrderPizzaFlavor[] // Lista de sabores (Meia Calabresa, Meia Frango)
+
+  @@map("order_pizzas")
+}
+
+model OrderPizzaFlavor {
+  id           String      @id @default(uuid()) @db.Uuid
+  orderPizzaId String      @map("order_pizza_id") @db.Uuid
+  flavorId     String      @map("flavor_id") @db.Uuid
+
+  orderPizza   OrderPizza  @relation(fields: [orderPizzaId], references: [id], onDelete: Cascade)
+  flavor       PizzaFlavor @relation(fields: [flavorId], references: [id])
+
+  @@map("order_pizza_flavors")
+}
