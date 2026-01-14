@@ -11,6 +11,7 @@ import {
 import { AdditionalsService } from "./additionals.service";
 import { CreateAdditionalDto } from "./dto/create-additional.dto";
 import { UpdateAdditionalDto } from "./dto/update-additional.dto";
+import { Public } from "src/common/decorators/public.decorator";
 
 @Controller("additionals")
 export class AdditionalsController {
@@ -21,11 +22,13 @@ export class AdditionalsController {
     return this.additionalsService.create(createAdditionalDto);
   }
 
+  @Public()
   @Get()
   findAll(@Query("companyId") companyId: string) {
     return this.additionalsService.findAll(companyId);
   }
 
+  @Public()
   @Get(":id")
   findOne(@Param("id") id: string) {
     return this.additionalsService.findOne(id);

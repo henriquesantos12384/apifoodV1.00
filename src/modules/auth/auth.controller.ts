@@ -9,6 +9,12 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Post("check-email")
+  checkEmail(@Body("email") email: string) {
+    return this.authService.checkEmail(email);
+  }
+
+  @Public()
   @Post("signup")
   signup(@Body() signupDto: SignupDto) {
     return this.authService.signup(signupDto);

@@ -7,9 +7,16 @@ import {
 } from "class-validator";
 
 export class CreatePizzaFlavorDto {
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
   @IsUUID()
   @IsNotEmpty()
   companyId: string;
+
+  @IsUUID()
+  @IsOptional()
+  categoryId?: string;
 
   @IsString()
   @IsOptional()

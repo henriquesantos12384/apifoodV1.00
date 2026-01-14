@@ -15,6 +15,13 @@ import { PizzaFlavorsModule } from "./modules/pizza-flavors/pizza-flavors.module
 import { PizzaBordersModule } from "./modules/pizza-borders/pizza-borders.module";
 import { PromotionsModule } from "./modules/promotions/promotions.module";
 import { OrdersModule } from "./modules/orders/orders.module";
+import { DeliveryAreasModule } from "./modules/delivery-areas/delivery-areas.module";
+import { CustomersModule } from "./modules/customers/customers.module";
+import { RestaurantTablesModule } from "./modules/restaurant-tables/restaurant-tables.module";
+import { CashRegistersModule } from "./modules/cash-registers/cash-registers.module";
+import { PaymentsModule } from "./modules/payments/payments.module";
+import { PrintersModule } from "./modules/printers/printers.module";
+import { CartsModule } from "./modules/carts/carts.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { SupabaseModule } from "./common/supabase/supabase.module";
 
@@ -33,6 +40,13 @@ import { SupabaseModule } from "./common/supabase/supabase.module";
     PizzaBordersModule,
     PromotionsModule,
     OrdersModule,
+    DeliveryAreasModule,
+    CustomersModule,
+    RestaurantTablesModule,
+    CashRegistersModule,
+    PaymentsModule,
+    PrintersModule,
+    CartsModule,
     SupabaseModule,
   ],
   controllers: [AppController],

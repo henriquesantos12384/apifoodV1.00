@@ -18,9 +18,12 @@ export class CategoriesService {
       where: { companyId },
       orderBy: { displayOrder: "asc" },
       include: {
-        products: true,
+        products: { where: { isActive: true } },
         additionals: true,
-        // pizzaFlavors: true, // Removed as PizzaFlavor no longer has a category relation
+        pizzaFlavors: {
+          where: { isActive: true },
+          include: { sizePrices: true },
+        },
       },
     });
   }

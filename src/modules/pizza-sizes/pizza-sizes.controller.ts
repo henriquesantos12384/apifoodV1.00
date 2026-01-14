@@ -11,6 +11,7 @@ import {
 import { PizzaSizesService } from "./pizza-sizes.service";
 import { CreatePizzaSizeDto } from "./dto/create-pizza-size.dto";
 import { UpdatePizzaSizeDto } from "./dto/update-pizza-size.dto";
+import { Public } from "src/common/decorators/public.decorator";
 
 @Controller("pizza-sizes")
 export class PizzaSizesController {
@@ -21,11 +22,13 @@ export class PizzaSizesController {
     return this.pizzaSizesService.create(createPizzaSizeDto);
   }
 
+  @Public()
   @Get()
   findAll(@Query("companyId") companyId: string) {
     return this.pizzaSizesService.findAll(companyId);
   }
 
+  @Public()
   @Get(":id")
   findOne(@Param("id") id: string) {
     return this.pizzaSizesService.findOne(id);

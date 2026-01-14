@@ -17,6 +17,13 @@ export class AuthService {
     private jwtService: JwtService
   ) {}
 
+  async checkEmail(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    return { exists: !!user };
+  }
+
   async signup(dto: SignupDto) {
     // 1. Check if user exists
     const existingUser = await this.prisma.user.findUnique({
@@ -113,6 +120,7 @@ export class AuthService {
         name: user.fullName,
         email: user.email,
         role: user.role?.name,
+        companyId: user.companyId,
         companySlug: user.company?.slug,
       },
     };

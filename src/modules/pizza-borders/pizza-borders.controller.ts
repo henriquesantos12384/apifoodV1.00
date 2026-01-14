@@ -11,6 +11,7 @@ import {
 import { PizzaBordersService } from "./pizza-borders.service";
 import { CreatePizzaBorderDto } from "./dto/create-pizza-border.dto";
 import { UpdatePizzaBorderDto } from "./dto/update-pizza-border.dto";
+import { Public } from "src/common/decorators/public.decorator";
 
 @Controller("pizza-borders")
 export class PizzaBordersController {
@@ -21,11 +22,13 @@ export class PizzaBordersController {
     return this.pizzaBordersService.create(createPizzaBorderDto);
   }
 
+  @Public()
   @Get()
   findAll(@Query("companyId") companyId: string) {
     return this.pizzaBordersService.findAll(companyId);
   }
 
+  @Public()
   @Get(":id")
   findOne(@Param("id") id: string) {
     return this.pizzaBordersService.findOne(id);

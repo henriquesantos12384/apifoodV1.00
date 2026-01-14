@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import * as bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
@@ -9,6 +10,7 @@ async function main() {
     { name: "caixa", description: "Operador de PDV" },
     { name: "cozinha", description: "Visualização de pedidos KDS" },
     { name: "entregador", description: "App de entregas" },
+    { name: "garcom", description: "Atendimento de mesas" },
   ];
 
   console.log("Seeding roles...");
@@ -23,6 +25,25 @@ async function main() {
       },
     });
     console.log(`Upserted role: ${role.name}`);
+  }
+
+  // Create default admin user
+  const adminRole = await prisma.role.findUnique({ where: { name: "admin" } });
+
+  if (adminRole) {
+    const hashedPassword = await bcrypt.hash("123456", 10);
+
+    await prisma.user.upsert({
+      where: { email: "admin@admin.com" },
+      update: {},
+      create: {
+        email: "admin@admin.com",
+        fullName: "Admin User",
+        passwordHash: hashedPassword,
+        roleId: adminRole.id,
+      },
+    });
+    console.log("Upserted user: admin@admin.com / 123456");
   }
 
   console.log("Seeding finished.");

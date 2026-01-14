@@ -9,35 +9,81 @@ export class PizzaFlavorsService {
   constructor(private prisma: PrismaService) {}
 
   async create(createPizzaFlavorDto: CreatePizzaFlavorDto) {
-    const { companyId, name, description, type, isMenu, isActive, sizePrices } =
-      createPizzaFlavorDto;
+    const {
+      companyId,
+      name,
+      description,
+      type,
+      isMenu,
+      isActive,
+      sizePrices,
+      categoryId,
+      imageUrl,
+    } = createPizzaFlavorDto;
 
     // 1. Create the flavor
-    const rows: any[] = await this.prisma.$queryRaw`
-      INSERT INTO "pizza_flavors" (
-        id, company_id, name, description, type, is_menu, is_active, created_at, updated_at
-      ) VALUES (
-        gen_random_uuid(), 
-        ${companyId}::uuid, 
-        ${name}, 
-        ${description || null}, 
-        ${type || null}, 
-        ${isMenu ?? true}, 
-        ${isActive ?? true}, 
-        NOW(), 
-        NOW()
-      )
-      RETURNING 
-        id, 
-        company_id as "companyId", 
-        type, 
-        name, 
-        description, 
-        is_menu as "isMenu", 
-        is_active as "isActive", 
-        created_at as "createdAt", 
-        updated_at as "updatedAt"
-    `;
+    let rows: any[];
+    if (!categoryId || categoryId === "") {
+      rows = await this.prisma.$queryRaw`
+        INSERT INTO "pizza_flavors" (
+          id, company_id, category_id, name, description, type, is_menu, is_active, image_url, created_at, updated_at
+        ) VALUES (
+          gen_random_uuid(),
+          ${companyId}::uuid,
+          ${null},
+          ${name},
+          ${description || null},
+          ${type || null},
+          ${isMenu ?? true},
+          ${isActive ?? true},
+          ${imageUrl || null},
+          NOW(),
+          NOW()
+        )
+        RETURNING 
+          id, 
+          company_id as "companyId", 
+          category_id as "categoryId",
+          type, 
+          name, 
+          description, 
+          is_menu as "isMenu", 
+          is_active as "isActive", 
+          image_url as "imageUrl",
+          created_at as "createdAt", 
+          updated_at as "updatedAt"
+      `;
+    } else {
+      rows = await this.prisma.$queryRaw`
+        INSERT INTO "pizza_flavors" (
+          id, company_id, category_id, name, description, type, is_menu, is_active, image_url, created_at, updated_at
+        ) VALUES (
+          gen_random_uuid(),
+          ${companyId}::uuid,
+          ${categoryId}::uuid,
+          ${name},
+          ${description || null},
+          ${type || null},
+          ${isMenu ?? true},
+          ${isActive ?? true},
+          ${imageUrl || null},
+          NOW(),
+          NOW()
+        )
+        RETURNING 
+          id, 
+          company_id as "companyId", 
+          category_id as "categoryId",
+          type, 
+          name, 
+          description, 
+          is_menu as "isMenu", 
+          is_active as "isActive", 
+          image_url as "imageUrl",
+          created_at as "createdAt", 
+          updated_at as "updatedAt"
+      `;
+    }
     const flavor = rows[0];
 
     // 2. Create size prices if provided
@@ -77,11 +123,13 @@ export class PizzaFlavorsService {
           SELECT 
             f.id, 
             f.company_id as "companyId", 
+            f.category_id as "categoryId",
             f.type, 
             f.name, 
             f.description, 
             f.is_menu as "isMenu", 
             f.is_active as "isActive", 
+            f.image_url as "imageUrl",
             f.created_at as "createdAt", 
             f.updated_at as "updatedAt",
             (
@@ -102,11 +150,13 @@ export class PizzaFlavorsService {
           SELECT 
             f.id, 
             f.company_id as "companyId", 
+            f.category_id as "categoryId",
             f.type, 
             f.name, 
             f.description, 
             f.is_menu as "isMenu", 
             f.is_active as "isActive", 
+            f.image_url as "imageUrl",
             f.created_at as "createdAt", 
             f.updated_at as "updatedAt",
             (
@@ -133,11 +183,13 @@ export class PizzaFlavorsService {
       SELECT 
         f.id, 
         f.company_id as "companyId", 
+        f.category_id as "categoryId",
         f.type, 
         f.name, 
         f.description, 
         f.is_menu as "isMenu", 
         f.is_active as "isActive", 
+        f.image_url as "imageUrl",
         f.created_at as "createdAt", 
         f.updated_at as "updatedAt",
         (
@@ -155,8 +207,16 @@ export class PizzaFlavorsService {
   }
 
   async update(id: string, updatePizzaFlavorDto: UpdatePizzaFlavorDto) {
-    const { name, description, type, isMenu, isActive, sizePrices } =
-      updatePizzaFlavorDto;
+    const {
+      name,
+      description,
+      type,
+      isMenu,
+      isActive,
+      sizePrices,
+      categoryId,
+      imageUrl,
+    } = updatePizzaFlavorDto;
 
     // Build dynamic update query
     const updates: Prisma.Sql[] = [];
@@ -167,6 +227,15 @@ export class PizzaFlavorsService {
     if (isMenu !== undefined) updates.push(Prisma.sql`is_menu = ${isMenu}`);
     if (isActive !== undefined)
       updates.push(Prisma.sql`is_active = ${isActive}`);
+    if (categoryId !== undefined) {
+      if (categoryId === null || categoryId === "") {
+        updates.push(Prisma.sql`category_id = null`);
+      } else {
+        updates.push(Prisma.sql`category_id = ${categoryId}::uuid`);
+      }
+    }
+    if (imageUrl !== undefined)
+      updates.push(Prisma.sql`image_url = ${imageUrl}`);
     updates.push(Prisma.sql`updated_at = NOW()`);
 
     let flavor;

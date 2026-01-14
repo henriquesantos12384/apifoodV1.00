@@ -1,5 +1,11 @@
-import { IsNumber, IsOptional, IsString, IsArray, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import {
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsArray,
+  ValidateNested,
+} from "class-validator";
+import { Type } from "class-transformer";
 
 class FlavorDto {
   @IsString()
@@ -24,7 +30,7 @@ export class AddOrderPizzaDto {
 
   @IsOptional()
   @IsString()
-  notes?: string;
+  observation?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
